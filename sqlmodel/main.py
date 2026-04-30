@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import inspect as pyinspect
 import ipaddress
 import uuid
 import weakref
@@ -35,6 +34,7 @@ from typing import (
 from pydantic import BaseModel, EmailStr
 from pydantic.fields import FieldInfo as PydanticFieldInfo
 from sqlalchemy import (
+    ARRAY,
     Boolean,
     Column,
     Date,
@@ -622,12 +622,14 @@ class SQLModelMetaclass(ModelMetaclass, DeclarativeMeta):
 
                 if not hasattr(c, "__table_args__"):
                     continue
+
                 c_table_args_attr = c.__table_args__
                 if isinstance(c_table_args_attr, declared_attr):
                     c_table_args_attr = c_table_args_attr.fget(new_cls)
                 elif callable(c_table_args_attr):
                     c_table_args_attr = c_table_args_attr(new_cls)
-                if isinstance(c_table_args_attr, tuple):
+
+                if isinstance(c_table_args_attr, Sequence):
                     for item in c_table_args_attr:
                         if isinstance(item, dict):
                             args_dict.update(item)
@@ -729,11 +731,24 @@ def get_sqlalchemy_type(field: Any) -> Any:
     type_ = get_sa_type_from_field(field)
     metadata = get_field_metadata(field)
 
-    # Check enums first as an enum can also be a str, needed by Pydantic/FastAPI
-    if pyinspect.isclass(type_) and isinstance(
-        pyinspect.getattr_static(type_, "__get_sa_type__", None), classmethod
+    if sa_type := getattr(type_, "__get_sa_type__", lambda: None)():
+        return sa_type
+
+    target_type = getattr(field, "annotation", field_info.annotation)
+    origin = get_origin(target_type) or type_
+    args = get_args(target_type)
+    if (
+        origin
+        and (
+            issubclass(origin, Sequence)
+            or issubclass(origin, list)
+            or issubclass(origin, tuple)
+        )
+        and args
     ):
-        return type_.__get_sa_type__()
+        if inner_sa_type := getattr(args[0], "__get_sa_type__", lambda: None)():
+            return ARRAY(inner_sa_type)
+
     if issubclass(type_, Enum):
         return sa_Enum(type_)
     if issubclass(
