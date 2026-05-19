@@ -31,6 +31,7 @@ from typing import (
     overload,
 )
 
+import sqlalchemy as sa
 from pydantic import BaseModel, EmailStr
 from pydantic.fields import FieldInfo as PydanticFieldInfo
 from sqlalchemy import (
@@ -395,12 +396,24 @@ def Field(
     schema_extra: Optional[Dict[str, Any]] = None,
 ) -> Any:
     current_schema_extra = schema_extra or {}
+    if not isinstance(sa_column_kwargs, MutableMapping):
+        sa_column_kwargs = {}
 
     if description:
-        if isinstance(sa_column_kwargs, MutableMapping):
-            sa_column_kwargs["comment"] = description
-        else:
-            sa_column_kwargs = {"comment": description}
+        sa_column_kwargs["comment"] = description
+
+    if default:
+        import enum
+
+        _d = default
+        if isinstance(_d, enum.Enum):
+            _d = _d.value
+        if isinstance(_d, str):
+            sa_column_kwargs["server_default"] = sa.literal_column(f"'{_d}'")
+        elif isinstance(_d, bool):
+            sa_column_kwargs["server_default"] = sa.text("true" if _d else "false")
+        elif isinstance(_d, (int, float)):
+            sa_column_kwargs["server_default"] = sa.text(str(_d))
 
     field_info = FieldInfo(
         default,
