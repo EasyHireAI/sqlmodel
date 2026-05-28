@@ -3,7 +3,6 @@ from __future__ import annotations
 import ipaddress
 import uuid
 import weakref
-from collections.abc import MutableMapping
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from enum import Enum
@@ -396,9 +395,10 @@ def Field(
     schema_extra: Optional[Dict[str, Any]] = None,
 ) -> Any:
     current_schema_extra = schema_extra or {}
-    if not isinstance(sa_column_kwargs, MutableMapping):
+    if not sa_column_kwargs or isinstance(sa_column_kwargs, UndefinedType):
         sa_column_kwargs = {}
-
+    else:
+        sa_column_kwargs = {**sa_column_kwargs}
     if description:
         sa_column_kwargs["comment"] = description
 
@@ -409,7 +409,7 @@ def Field(
         if isinstance(_d, enum.Enum):
             _d = _d.value
         if isinstance(_d, str):
-            sa_column_kwargs["server_default"] = sa.literal_column(f"'{_d}'")
+            sa_column_kwargs["server_default"] = sa.text(f"'{_d}'")
         elif isinstance(_d, bool):
             sa_column_kwargs["server_default"] = sa.text("true" if _d else "false")
         elif isinstance(_d, (int, float)):
