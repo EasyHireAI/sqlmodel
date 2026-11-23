@@ -6,8 +6,8 @@ coverage[toml] >=6.2,<8.0
 mypy ==1.14.1; python_version < "3.9"
 mypy ==1.18.2; python_version >= "3.9"
 ruff ==0.14.8
-# For FastAPI tests
-fastapi >=0.103.2
+# For FastAPI tests; tutorial OpenAPI fixtures match this range
+fastapi >=0.103.2,<0.125.0
 httpx ==0.28.1
 dirty-equals ==0.9.0
 jinja2 ==3.1.6
