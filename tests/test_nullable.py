@@ -70,11 +70,19 @@ def test_nullable_fields(clear_sqlmodel, caplog):
     assert "optional_default_none_nullable VARCHAR," in create_table_log
     assert "default_ellipses_non_nullable VARCHAR NOT NULL," in create_table_log
     assert "optional_default_str VARCHAR," in create_table_log
-    assert "optional_default_str_non_nullable VARCHAR NOT NULL," in create_table_log
-    assert "optional_default_str_nullable VARCHAR," in create_table_log
+    assert (
+        "optional_default_str_non_nullable VARCHAR DEFAULT 'default' NOT NULL,"
+        in create_table_log
+    )
+    assert (
+        "optional_default_str_nullable VARCHAR DEFAULT 'default'," in create_table_log
+    )
     assert "str_default_str VARCHAR NOT NULL," in create_table_log
-    assert "str_default_str_non_nullable VARCHAR NOT NULL," in create_table_log
-    assert "str_default_str_nullable VARCHAR," in create_table_log
+    assert (
+        "str_default_str_non_nullable VARCHAR DEFAULT 'default' NOT NULL,"
+        in create_table_log
+    )
+    assert "str_default_str_nullable VARCHAR DEFAULT 'default'," in create_table_log
     assert "str_default_ellipsis_non_nullable VARCHAR NOT NULL," in create_table_log
     assert "str_default_ellipsis_nullable VARCHAR," in create_table_log
 

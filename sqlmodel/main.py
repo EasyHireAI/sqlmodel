@@ -415,6 +415,9 @@ def Field(
         elif isinstance(_d, (int, float)):
             sa_column_kwargs["server_default"] = sa.text(str(_d))
 
+    if not sa_column_kwargs:
+        sa_column_kwargs = Undefined
+
     field_info = FieldInfo(
         default,
         default_factory=default_factory,
@@ -601,7 +604,7 @@ class SQLModelMetaclass(ModelMetaclass, DeclarativeMeta):
             # TODO: remove this in the future
             set_config_value(model=new_cls, parameter="read_with_orm_mode", value=True)
 
-            merge_keys = set()
+            merge_keys: Set[str] = set()
             for c in new_cls.__mro__:
                 if c in (object, type, BaseModel, SQLModel):
                     continue
@@ -615,7 +618,7 @@ class SQLModelMetaclass(ModelMetaclass, DeclarativeMeta):
                         if "merge" in get_args(attr_type)[1:]:
                             merge_keys.add(attr_name)
 
-            merged_data = {key: set() for key in merge_keys}
+            merged_data: Dict[str, Set[Any]] = {key: set() for key in merge_keys}
             args = []
             args_dict: dict[str, Any] = {}
             comment = get_config("comment")
@@ -636,7 +639,7 @@ class SQLModelMetaclass(ModelMetaclass, DeclarativeMeta):
                 if not hasattr(c, "__table_args__"):
                     continue
 
-                c_table_args_attr = c.__table_args__
+                c_table_args_attr = cast(Any, c).__table_args__
                 if isinstance(c_table_args_attr, declared_attr):
                     c_table_args_attr = c_table_args_attr.fget(new_cls)
                 elif callable(c_table_args_attr):
@@ -656,7 +659,7 @@ class SQLModelMetaclass(ModelMetaclass, DeclarativeMeta):
                     args.append(v)
                     del args_dict[k]
             if len(args) > 0 or len(args_dict) > 0:
-                new_cls.__table_args__ = (
+                cast(Any, new_cls).__table_args__ = (
                     (*args, args_dict) if len(args_dict) > 0 else tuple(args)
                 )
             for key, value in merged_data.items():
@@ -747,11 +750,14 @@ def get_sqlalchemy_type(field: Any) -> Any:
     if sa_type := getattr(type_, "__get_sa_type__", lambda: None)():
         return sa_type
 
-    target_type = getattr(field, "annotation", field_info.annotation)
+    target_type = getattr(field, "annotation", None) or getattr(
+        field, "outer_type_", type_
+    )
     origin = get_origin(target_type) or type_
     args = get_args(target_type)
     if (
         origin
+        and isinstance(origin, type)
         and (
             issubclass(origin, Sequence)
             or issubclass(origin, list)
@@ -979,6 +985,7 @@ class SQLModel(BaseModel, metaclass=SQLModelMetaclass, registry=default_registry
         warnings: Union[bool, Literal["none", "warn", "error"]] = True,
         fallback: Union[Callable[[Any], Any], None] = None,  # v2.11
         serialize_as_any: bool = False,  # v2.7
+        polymorphic_serialization: Union[bool, None] = None,  # v2.13
     ) -> Dict[str, Any]:
         if PYDANTIC_MINOR_VERSION < (2, 11):
             by_alias = by_alias or False
@@ -990,6 +997,8 @@ class SQLModel(BaseModel, metaclass=SQLModelMetaclass, registry=default_registry
             extra_kwargs["fallback"] = fallback
         if PYDANTIC_MINOR_VERSION >= (2, 12):
             extra_kwargs["exclude_computed_fields"] = exclude_computed_fields
+        if PYDANTIC_MINOR_VERSION >= (2, 13):
+            extra_kwargs["polymorphic_serialization"] = polymorphic_serialization
         if IS_PYDANTIC_V2:
             return super().model_dump(
                 mode=mode,
